@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	cfyczv1 "github.com/cloud-for-you/vault-secret-injector/api/v1"
+	vaultsecretv1 "github.com/cloud-for-you/vault-secret-injector/api/v1"
 	vaultapi "github.com/hashicorp/vault/api"
 	k8siov1 "k8s.io/api/core/v1"
 )
@@ -24,15 +24,12 @@ func CreateOrUpdateSecretEngineKV(ctx *k8siov1.Namespace, client *vaultapi.Clien
 	}
 
 	if _, exists := mounts[mountPath+"/"]; exists {
-		LogAudit(jwt, "Vault secret engine already exists", map[string]interface{}{"mountPath": mountPath, "namespace": ctx.GetName()})
+		LogAudit(jwt, "KeyVault secret engine already exists", map[string]any{"mountPath": mountPath, "namespace": ctx.GetName()})
 		return nil
 	}
 
 	mountInput := &vaultapi.MountInput{
 		Type: "kv",
-		Description: fmt.Sprintf(
-			"Managed KV v2 (project=%s;owner=vault-secret-injector-webhook;purpose=secrets;lifecycle=managed)", ctx.GetName(),
-		),
 		Options: map[string]string{
 			"version": "2",
 		},
@@ -40,15 +37,15 @@ func CreateOrUpdateSecretEngineKV(ctx *k8siov1.Namespace, client *vaultapi.Clien
 
 	err = client.Sys().Mount(mountPath, mountInput)
 	if err != nil {
-		return fmt.Errorf("failed to create secret engine at %s: %w", mountPath, err)
+		return fmt.Errorf("failed to create KeyVault secret engine at %s: %w", mountPath, err)
 	}
 
-	LogAudit(jwt, "Created Vault secret engine", map[string]interface{}{"mountPath": mountPath, "namespace": ctx.GetName()})
+	LogAudit(jwt, "Created KeyVault secret engine", map[string]any{"mountPath": mountPath, "namespace": ctx.GetName()})
 
 	return nil
 }
 
-// DeleteSecretEngineKV2 deletes the KV v2 secret engine mount in Vault for the namespace.
+// DeleteSecretEngineKV deletes the KV v2 secret engine mount in Vault for the namespace.
 // Parameters:
 // - ctx: the Kubernetes namespace object
 // - client: the Vault API client
@@ -62,12 +59,12 @@ func DeleteSecretEngineKV(ctx *k8siov1.Namespace, client *vaultapi.Client, jwt s
 		return fmt.Errorf("failed to delete secret engine at %s: %w", mountPath, err)
 	}
 
-	LogAudit(jwt, "Deleted Vault secret engine", map[string]interface{}{"mountPath": mountPath, "namespace": ctx.GetName()})
+	LogAudit(jwt, "Deleted Vault secret engine", map[string]any{"mountPath": mountPath, "namespace": ctx.GetName()})
 
 	return nil
 }
 
-// FetchSecretKV fetches a secret from Vault KV v2 engine.
+// FetchSecretEngineKV fetches a secret from Vault KV v2 engine.
 // Parameters:
 // - client: the Vault API client
 // - jwt: the JWT token for auditing
@@ -98,7 +95,7 @@ func FetchSecretEngineKV(client *vaultapi.Client, jwt, mount, path string) (map[
 		result[k] = []byte(str)
 	}
 
-	LogAudit(jwt, "Fetched secret from Vault KV engine", map[string]interface{}{"mount": mount, "path": path})
+	LogAudit(jwt, "Fetched secret from Vault KV engine", map[string]any{"mount": mount, "path": path})
 
 	return result, nil
 }
@@ -120,11 +117,11 @@ func FetchSecretValue(client *vaultapi.Client, jwt, mount, path string) ([]byte,
 	return nil, nil // shouldn't reach
 }
 
-// FetchSecretData fetches secret data from Vault based on annotations and spec.
-func FetchSecretData(vaultClient *vaultapi.Client, impersonateJwt string, annotations *cfyczv1.KeyVaultAnnotations, vaultSecret *cfyczv1.KeyVault) (map[string][]byte, error) {
+// FetchKVSecret fetches secret data from Vault based on annotations and spec.
+func FetchKVSecret(vaultClient *vaultapi.Client, impersonateJwt string, annotations *vaultsecretv1.VaultSecretAnnotations, vaultSecret *vaultsecretv1.KeyVault) (map[string][]byte, error) {
 	var secretData map[string][]byte
-	if annotations.VaultPath != "" {
-		data, err := FetchSecretEngineKV(vaultClient, impersonateJwt, annotations.VaultMount, annotations.VaultPath)
+	if annotations.VaultKVPath != "" {
+		data, err := FetchSecretEngineKV(vaultClient, impersonateJwt, annotations.VaultKVMount, annotations.VaultKVPath)
 		if err != nil {
 			return nil, err
 		}
@@ -138,7 +135,7 @@ func FetchSecretData(vaultClient *vaultapi.Client, impersonateJwt string, annota
 			}
 			vaultPath := parts[0]
 			keyInVault := parts[1]
-			data, err := FetchSecretEngineKV(vaultClient, impersonateJwt, annotations.VaultMount, vaultPath)
+			data, err := FetchSecretEngineKV(vaultClient, impersonateJwt, annotations.VaultKVMount, vaultPath)
 			if err != nil {
 				return nil, err
 			}
