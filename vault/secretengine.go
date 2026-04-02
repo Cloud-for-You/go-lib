@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	cfyczv1 "github.com/cloud-for-you/vault-secret-injector"
+	cfyczv1 "github.com/cloud-for-you/vault-secret-injector/api/v1"
 	vaultapi "github.com/hashicorp/vault/api"
 	k8siov1 "k8s.io/api/core/v1"
 )
