@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	cfyczv1 "github.com/cloud-for-you/vault-secret-injector/api/v1"
 	vaultapi "github.com/hashicorp/vault/api"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -53,20 +54,24 @@ func NewVaultClient() (*vaultapi.Client, error) {
 }
 
 // SetupVaultClient sets up the Vault client and authenticates.
-func SetupVaultClient(ctx context.Context, namespace string, serviceAccount string) (*vaultapi.Client, string, error) {
-	clientset := kubernetes.NewForConfigOrDie(ctrl.GetConfigOrDie())
-	impersonateJwt, err := getImpersonateSAToken(ctx, clientset, namespace, serviceAccount, "serviceaccount", int64(600))
+func SetupVaultClient(ctx context.Context, vaultSecret *cfyczv1.KeyVault) (*vaultapi.Client, string, error) {
+	annotations, err := vaultSecret.ParseAnnotations(vaultSecret.ObjectMeta)
 	if err != nil {
 		return nil, "", err
 	}
-	LogAudit(impersonateJwt, "Obtained impersonated service account token", map[string]interface{}{"namespace": namespace, "serviceAccount": annotations.VaultServiceAccount})
+	clientset := kubernetes.NewForConfigOrDie(ctrl.GetConfigOrDie())
+	impersonateJwt, err := getImpersonateSAToken(ctx, clientset, vaultSecret.GetNamespace(), annotations.VaultServiceAccount, "serviceaccount", int64(600))
+	if err != nil {
+		return nil, "", err
+	}
+	LogAudit(impersonateJwt, "Obtained impersonated service account token", map[string]interface{}{"namespace": vaultSecret.GetNamespace(), "serviceAccount": annotations.VaultServiceAccount})
 
 	vaultClient, err := NewVaultClient()
 	if err != nil {
 		return nil, "", err
 	}
 
-	err = VaultLoginWithK8sAuth(ctx, vaultClient, os.Getenv("VAULT_K8S_AUTH_MOUNT"), impersonateJwt, namespace)
+	err = VaultLoginWithK8sAuth(ctx, vaultClient, os.Getenv("VAULT_K8S_AUTH_MOUNT"), impersonateJwt, vaultSecret.GetNamespace())
 	if err != nil {
 		return nil, "", err
 	}
