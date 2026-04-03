@@ -4,10 +4,10 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	log "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-var auditlog = logf.Log.WithName("audit")
+var auditlog = log.Log.WithName("audit")
 
 // AuditEntry represents an audit log entry
 type AuditEntry struct {
